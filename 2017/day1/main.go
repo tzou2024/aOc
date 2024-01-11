@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 )
 
 func importData(path string) []int {
@@ -21,10 +23,11 @@ func importData(path string) []int {
 	var fileLines []string
 
 	for fileScanner.Scan() {
+		// fmt.Println(len(fileScanner.Text()))
 		fileLines = append(fileLines, fileScanner.Text())
 	}
 
-	fmt.Println(fileLines[0])
+	// fmt.Println(fileLines[0])
 
 	intlist := make([]int, len(fileLines[0]))
 
@@ -34,31 +37,74 @@ func importData(path string) []int {
 
 	}
 
+	// fmt.Println(len(intlist))
+
 	readFile.Close()
-	fmt.Println(intlist)
+	// fmt.Println(intlist)
 
 	return intlist
 }
 
-func sum(s []int, c chan int) {
-	sum := 0
-	for i, v := range s {
-		trui := s[(i+1)%len(s)]
-		if trui == v {
-			sum += v
+func getcompare(path1, path2 string) {
+	readFile, _ := os.Open(path1)
+	scanlines := bufio.NewScanner(readFile)
+	scanlines.Split(bufio.ScanLines)
+	checker := make(map[string]bool)
+	for scanlines.Scan() {
+		strl := strings.Fields(scanlines.Text())
+		checker[strl[0]] = true
+
+	}
+	readFile.Close()
+	readFile, _ = os.Open(path2)
+	scanlines = bufio.NewScanner(readFile)
+	scanlines.Split(bufio.ScanLines)
+	for scanlines.Scan() {
+		strl := strings.Fields(scanlines.Text())
+		_, ok := checker[strl[0]]
+		if !ok {
+			fmt.Println(strl[0])
 		}
 	}
-	c <- sum
+}
+
+func valret(intlist []int, ind int, val int, som *incrementer, wg *sync.WaitGroup) {
+
+	nextind := (ind + 1) % len(intlist)
+
+	if intlist[nextind] == val {
+		// fmt.Println(ind, val)
+		// fmt.Println(val)
+		som.Add(val)
+	}
+	wg.Done()
+}
+
+type incrementer struct {
+	sync.Mutex
+	i int
+}
+
+func (i *incrementer) Add(n int) {
+	i.Lock()
+	defer i.Unlock()
+	i.i += n
 }
 
 func main() {
 	intlist := importData("input.txt")
-	c1 := make(chan int)
-	c2 := make(chan int)
 
-	go sum(intlist[len(intlist)/2:], c1)
-	go sum(intlist[:len(intlist)/2], c2)
-	x, y := <-c1, <-c2
+	sum := incrementer{sync.Mutex{}, 0}
 
-	fmt.Println(x, y, x+y)
+	var wg sync.WaitGroup
+	wg.Add(len(intlist))
+	// wg.Add(1)
+	for ind, val := range intlist {
+		go valret(intlist, ind, val, &sum, &wg)
+	}
+	wg.Wait()
+	// time.Sleep(2 * time.Second)
+
+	fmt.Println(sum.i)
+	// getcompare("straightmatching.txt", "asyncmatching.txt")
 }
